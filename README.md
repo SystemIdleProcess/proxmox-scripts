@@ -14,7 +14,7 @@ bash -c "$(wget -qLO - https://github.com/SystemIdleProcess/proxmox-scripts/main
 
 ---
 
-## r8152-setup.sh
+## pve-r8152-setup.sh
 
 Pulls the latest Realtek r8152 USB Ethernet driver from [wget/realtek-r8152-linux](https://github.com/wget/realtek-r8152-linux), registers it with DKMS, and builds it for a target kernel. Lists installed kernels with driver status and lets you select by number. Also installs the DKMS auto-rebuild hook from `pve-dkms-autofix.sh`.
 
