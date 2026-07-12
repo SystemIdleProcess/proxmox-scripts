@@ -323,7 +323,7 @@ done
 echo ""
 
 if [[ "$REBUILDS_NEEDED" == true ]]; then
-    echo -e "  ${GREEN}Rebuilt $TOTAL_REBUILT module(s) for missing kernels.${NC}"
+    echo -e "  ${GREEN}Completed $TOTAL_REBUILT DKMS build(s) across missing kernels.${NC}"
     echo ""
 fi
 
@@ -337,7 +337,7 @@ if [[ $HEADERS_INSTALLED -gt 0 ]]; then
     echo "    • Installed missing headers for $HEADERS_INSTALLED kernel(s)"
 fi
 if [[ $TOTAL_REBUILT -gt 0 ]]; then
-    echo "    • Built and installed $TOTAL_REBUILT missing DKMS module(s)"
+    echo "    • Completed $TOTAL_REBUILT DKMS build(s) for missing kernels"
 fi
 echo ""
 echo "  Going forward, 'apt full-upgrade' will automatically handle"
