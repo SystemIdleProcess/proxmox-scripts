@@ -45,7 +45,7 @@ CURRENT_KERNEL="$(uname -r)"
 
 echo ""
 echo -e "${CYAN}╔══════════════════════════════════════════════════════════╗${NC}"
-echo -e "${CYAN}║        DKMS Auto-Rebuild Fix for Proxmox VE            ║${NC}"
+echo -e "${CYAN}║           DKMS Auto-Rebuild Fix for Proxmox VE           ║${NC}"
 echo -e "${CYAN}╚══════════════════════════════════════════════════════════╝${NC}"
 echo ""
 info "Running kernel: $CURRENT_KERNEL"
@@ -293,7 +293,7 @@ echo ""
 # Summary
 # =============================================================================
 echo -e "${CYAN}╔══════════════════════════════════════════════════════════╗${NC}"
-echo -e "${CYAN}║                       Summary                          ║${NC}"
+echo -e "${CYAN}║                         Summary                          ║${NC}"
 echo -e "${CYAN}╚══════════════════════════════════════════════════════════╝${NC}"
 echo ""
 
