@@ -31,6 +31,12 @@ mapfile -t INSTALLED_KERNELS < <(
     | sort -uV
 )
 
+# Safety: if package detection returned nothing, every kernel except the
+# running one would look orphaned. Bail out rather than risk removing a
+# kernel that is actually installed.
+[[ ${#INSTALLED_KERNELS[@]} -gt 0 ]] || \
+    error "No installed kernel packages detected — refusing to continue. Check 'dpkg --list | grep kernel' manually."
+
 # --- Build list of /lib/modules directories ----------------------------------
 mapfile -t MODULE_DIRS < <(ls /lib/modules/)
 
@@ -73,9 +79,10 @@ echo "Orphaned /lib/modules directories (no matching package):"
 echo "-----------------------------"
 TOTAL_SIZE=0
 for orphan in "${ORPHANS[@]}"; do
-    SIZE=$(du -sh "/lib/modules/$orphan" 2>/dev/null | awk '{print $1}')
-    SIZE_BYTES=$(du -sb "/lib/modules/$orphan" 2>/dev/null | awk '{print $1}')
-    TOTAL_SIZE=$((TOTAL_SIZE + SIZE_BYTES))
+    SIZE=$(du -sh "/lib/modules/$orphan" 2>/dev/null | awk '{print $1}' || true)
+    SIZE_BYTES=$(du -sb "/lib/modules/$orphan" 2>/dev/null | awk '{print $1}' || true)
+    SIZE="${SIZE:-?}"
+    TOTAL_SIZE=$((TOTAL_SIZE + ${SIZE_BYTES:-0}))
     echo -e "  ${RED}✘${NC} /lib/modules/$orphan  ($SIZE)"
 done
 TOTAL_HUMAN=$(numfmt --to=iec "$TOTAL_SIZE" 2>/dev/null || echo "${TOTAL_SIZE} bytes")
