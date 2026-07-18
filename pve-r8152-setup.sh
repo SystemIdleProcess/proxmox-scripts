@@ -1,11 +1,11 @@
 #!/bin/bash
 # =============================================================================
-# r8152-setup.sh
+# pve-r8152-setup.sh
 # Pulls latest Realtek r8152 driver from GitHub, registers it with DKMS,
 # and builds it for a target kernel — so you can reboot into it ready to go.
 #
 # Run this while booted into a working kernel WITH network access.
-# Usage: sudo bash r8152-setup.sh
+# Usage: sudo bash pve-r8152-setup.sh
 # =============================================================================
 
 set -euo pipefail
@@ -28,9 +28,14 @@ DKMS_NAME="r8152-realtek"
 # STEP 1: Detect driver version from the repo
 # =============================================================================
 info "Fetching latest driver version from GitHub..."
-DRIVER_VERSION=$(curl -fsSL "https://api.github.com/repos/wget/realtek-r8152-linux/releases/latest" \
-    | grep '"tag_name"' \
-    | sed 's/.*"v\([^"]*\)".*/\1/')
+RELEASE_API_URL="https://api.github.com/repos/wget/realtek-r8152-linux/releases/latest"
+RELEASE_JSON=$(curl -fsSL "$RELEASE_API_URL" 2>/dev/null || wget -qO - "$RELEASE_API_URL" || true)
+# sed -n prints only on a real match, so a malformed or truncated response
+# yields an empty string here instead of leaking garbage into paths below.
+DRIVER_TAG=$(echo "$RELEASE_JSON" \
+    | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' \
+    | head -n1)
+DRIVER_VERSION="${DRIVER_TAG#v}"
 
 [[ -n "$DRIVER_VERSION" ]] || error "Could not detect driver version from GitHub. Check your network."
 info "Latest driver version: $DRIVER_VERSION"
@@ -73,6 +78,30 @@ fi
 info "Target kernel: $TARGET_KERNEL"
 
 # =============================================================================
+# Confirmation prompt
+# =============================================================================
+echo ""
+echo "This script will:"
+echo "  1. Install build dependencies and headers for $TARGET_KERNEL"
+echo "  2. Download r8152 driver v$DRIVER_VERSION and register it with DKMS"
+echo "  3. Build and install the driver for $TARGET_KERNEL"
+echo "  4. Install udev rules and update the initramfs"
+echo "  5. Install the apt hook so the driver survives future kernel upgrades"
+if [[ "$TARGET_KERNEL" == "$(uname -r)" ]]; then
+    echo "  6. Reload the r8152 driver live (briefly drops USB NIC connectivity —"
+    echo "     an SSH session running over the r8152 adapter may disconnect)"
+else
+    echo "  6. Offer a reboot into $TARGET_KERNEL when done"
+fi
+echo ""
+read -rp "Proceed? [y/N]: " CONFIRM || CONFIRM=""
+if [[ "${CONFIRM,,}" != "y" && "${CONFIRM,,}" != "yes" ]]; then
+    info "Cancelled. No changes were made."
+    exit 0
+fi
+echo ""
+
+# =============================================================================
 # STEP 3: Install dependencies
 # =============================================================================
 info "Installing build dependencies..."
@@ -103,7 +132,9 @@ if [[ -d "$FULL_SRC_DIR" ]]; then
     rm -rf "$FULL_SRC_DIR"
 fi
 
-git clone "$REPO_URL" "$FULL_SRC_DIR"
+# Pin to the release tag so we build exactly the version we advertised,
+# not whatever is on the default branch today.
+git clone --depth 1 --branch "$DRIVER_TAG" "$REPO_URL" "$FULL_SRC_DIR"
 
 # Create symlink without version suffix (some DKMS setups prefer this)
 [[ -L "$SRC_DIR" ]] && rm "$SRC_DIR"
@@ -158,14 +189,20 @@ APT_HOOK_FILE="/etc/apt/apt.conf.d/99-auto-proxmox-headers"
 if [[ -f "$APT_HOOK_FILE" ]]; then
     info "apt header hook found — updating to latest version..."
 fi
-info "Installing apt hook to auto-install headers and rebuild DKMS modules..."
+info "Installing apt hook to rebuild DKMS modules after kernel upgrades..."
 cat > "$APT_HOOK_FILE" << 'EOF'
 Dpkg::Post-Invoke {
-    "for kver in $(dpkg -l 'proxmox-kernel-*' 2>/dev/null | awk '/^ii/{print $2}' | grep -v 'headers\\|dbgsym' | sed 's/proxmox-kernel-//'); do apt-get install -y proxmox-headers-$kver 2>/dev/null || true; if [ -d /lib/modules/$kver/build/include ]; then dkms autoinstall --kernelver $kver 2>/dev/null || true; fi; done";
+    "for d in /lib/modules/*; do kver=${d##*/}; if [ -d /lib/modules/$kver/build/include ]; then dkms autoinstall --kernelver $kver 2>/dev/null || true; fi; done";
 };
 EOF
 info "apt hook installed at $APT_HOOK_FILE"
-info "Headers will be auto-installed and DKMS modules auto-rebuilt on kernel upgrades."
+
+# The hook cannot install headers itself (apt holds the dpkg lock while its
+# hooks run), so this meta-package makes headers upgrade with the kernel.
+info "Installing proxmox-default-headers so future kernels arrive with headers..."
+apt-get install -y proxmox-default-headers >/dev/null 2>&1 \
+    || warn "Could not install proxmox-default-headers — headers for future kernels may need manual installation."
+info "DKMS modules will be auto-rebuilt after kernel upgrades."
 
 # =============================================================================
 # Done!
@@ -195,8 +232,8 @@ else
     info "Driver is built and ready for kernel $TARGET_KERNEL."
     info "You can now reboot into that kernel — the driver will load automatically."
     echo ""
-    read -rp "Reboot now? [y/N]: " DO_REBOOT
-    if [[ "${DO_REBOOT,,}" == "y" ]]; then
+    read -rp "Reboot now? [y/N]: " DO_REBOOT || DO_REBOOT=""
+    if [[ "${DO_REBOOT,,}" == "y" || "${DO_REBOOT,,}" == "yes" ]]; then
         info "Rebooting..."
         reboot
     else

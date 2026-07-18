@@ -10,12 +10,13 @@
 # with no DKMS-managed drivers (NVIDIA, r8152, etc.) and things break.
 #
 # SOLUTION:
-# This script installs an apt Dpkg::Post-Invoke hook that runs AFTER all
-# packages are installed. It:
-#   1. Finds all installed Proxmox kernels
-#   2. Ensures matching headers are installed for each
-#   3. Triggers 'dkms autoinstall' for any kernel that has headers but
-#      is missing DKMS modules
+#   1. Install the proxmox-default-headers meta-package, so kernel headers
+#      are upgraded in the same apt transaction as new kernels. (An apt
+#      hook cannot install headers itself — apt still holds the dpkg lock
+#      while its hooks run, so any nested apt-get always fails.)
+#   2. Install an apt Dpkg::Post-Invoke hook that runs 'dkms autoinstall'
+#      for every kernel that has headers present, AFTER packages are
+#      installed.
 #
 # This covers ALL DKMS-registered drivers (NVIDIA, r8152, Coral TPU,
 # i915-sriov, etc.) — not just one specific driver.
@@ -45,7 +46,7 @@ CURRENT_KERNEL="$(uname -r)"
 
 echo ""
 echo -e "${CYAN}╔══════════════════════════════════════════════════════════╗${NC}"
-echo -e "${CYAN}║        DKMS Auto-Rebuild Fix for Proxmox VE            ║${NC}"
+echo -e "${CYAN}║           DKMS Auto-Rebuild Fix for Proxmox VE           ║${NC}"
 echo -e "${CYAN}╚══════════════════════════════════════════════════════════╝${NC}"
 echo ""
 info "Running kernel: $CURRENT_KERNEL"
@@ -96,15 +97,15 @@ echo ""
 echo -e "${CYAN}──────────────────────────────────────────────────────────${NC}"
 echo ""
 echo "This script will:"
-echo "  1. Install/update an apt hook to auto-install headers and trigger"
-echo "     DKMS rebuilds on kernel upgrades"
+echo "  1. Install proxmox-default-headers and an apt hook so headers and"
+echo "     DKMS rebuilds are handled automatically on kernel upgrades"
 echo "  2. Fix any DKMS modules missing the AUTOINSTALL flag"
 echo "  3. Install missing kernel headers for all installed kernels"
 echo "  4. Build any missing DKMS modules for all installed kernels"
 echo "  5. Update initramfs for any kernels that were rebuilt"
 echo ""
-read -rp "Proceed? [y/N]: " CONFIRM
-if [[ "${CONFIRM,,}" != "y" ]]; then
+read -rp "Proceed? [y/N]: " CONFIRM || CONFIRM=""
+if [[ "${CONFIRM,,}" != "y" && "${CONFIRM,,}" != "yes" ]]; then
     info "Cancelled. No changes were made."
     exit 0
 fi
@@ -118,16 +119,26 @@ echo ""
 
 cat > "$APT_HOOK_FILE" << 'EOF'
 Dpkg::Post-Invoke {
-    "for kver in $(dpkg -l 'proxmox-kernel-*' 2>/dev/null | awk '/^ii/{print $2}' | grep -v 'headers\\|dbgsym' | sed 's/proxmox-kernel-//'); do apt-get install -y proxmox-headers-$kver 2>/dev/null || true; if [ -d /lib/modules/$kver/build/include ]; then dkms autoinstall --kernelver $kver 2>/dev/null || true; fi; done";
+    "for d in /lib/modules/*; do kver=${d##*/}; if [ -d /lib/modules/$kver/build/include ]; then dkms autoinstall --kernelver $kver 2>/dev/null || true; fi; done";
 };
 EOF
 
 info "apt hook written to $APT_HOOK_FILE"
-detail "On future 'apt upgrade' runs:"
-detail "  1. All Proxmox kernel packages are detected"
-detail "  2. Matching headers are installed for each"
-detail "  3. 'dkms autoinstall' is triggered AFTER headers are ready"
-detail "  4. All registered DKMS modules are rebuilt for the new kernel"
+detail "After every apt run, 'dkms autoinstall' rebuilds missing modules for"
+detail "every kernel that has headers installed."
+detail "(The hook cannot install headers itself — apt still holds the dpkg"
+detail "lock while its hooks run — so headers come from the meta-package below.)"
+echo ""
+
+META_HEADERS_OK=false
+info "Installing proxmox-default-headers so future kernels arrive with headers..."
+if apt-get install -y proxmox-default-headers >/dev/null 2>&1; then
+    META_HEADERS_OK=true
+    info "proxmox-default-headers installed — headers now upgrade together with kernels."
+else
+    warn "Could not install proxmox-default-headers."
+    detail "Headers for future kernels will need manual installation (Step 4 covers current ones)."
+fi
 echo ""
 
 # =============================================================================
@@ -184,6 +195,12 @@ mapfile -t INSTALLED_KERNELS < <(
     | sed -E 's/(proxmox-kernel|pve-kernel)-//; s/-(signed|dbgsym)//' \
     | sort -uV
 )
+
+if [[ ${#INSTALLED_KERNELS[@]} -eq 0 ]]; then
+    warn "No installed Proxmox kernel packages detected — header and module"
+    warn "checks below will be skipped. If this host does have PVE kernels,"
+    warn "the detection pattern in this script needs updating."
+fi
 
 info "Found ${#INSTALLED_KERNELS[@]} installed kernel(s):"
 HEADERS_INSTALLED=0
@@ -293,7 +310,7 @@ echo ""
 # Summary
 # =============================================================================
 echo -e "${CYAN}╔══════════════════════════════════════════════════════════╗${NC}"
-echo -e "${CYAN}║                       Summary                          ║${NC}"
+echo -e "${CYAN}║                         Summary                          ║${NC}"
 echo -e "${CYAN}╚══════════════════════════════════════════════════════════╝${NC}"
 echo ""
 
@@ -303,7 +320,7 @@ echo ""
 
 echo "  apt hook:"
 if [[ -f "$APT_HOOK_FILE" ]]; then
-    echo -e "    ${GREEN}✔ Active${NC} — headers + DKMS autoinstall on kernel upgrades"
+    echo -e "    ${GREEN}✔ Active${NC} — DKMS autoinstall runs after every apt operation"
 else
     echo -e "    ${RED}✘ Not found${NC}"
 fi
@@ -328,8 +345,10 @@ if [[ "$REBUILDS_NEEDED" == true ]]; then
 fi
 
 echo "  What was done:"
-echo "    • Installed apt hook to auto-install headers on kernel upgrades"
-echo "    • apt hook triggers 'dkms autoinstall' AFTER headers are ready"
+echo "    • Installed apt hook that runs 'dkms autoinstall' after apt operations"
+if [[ "$META_HEADERS_OK" == true ]]; then
+    echo "    • Installed proxmox-default-headers so new kernels arrive with headers"
+fi
 if [[ $FIXED_COUNT -gt 0 ]]; then
     echo "    • Fixed AUTOINSTALL flag on $FIXED_COUNT DKMS module(s)"
 fi

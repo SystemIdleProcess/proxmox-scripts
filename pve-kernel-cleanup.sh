@@ -17,6 +17,24 @@ error() { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
 
 [[ $EUID -eq 0 ]] || error "Please run as root: sudo bash $0"
 
+# Returns 0 if any INSTALLED (state ii) package owns the given path — catches
+# kernels the PVE name patterns miss, e.g. Debian's linux-image-*. dpkg -S
+# alone is not enough: removed-but-not-purged packages keep their file lists,
+# and those leftover kernels are exactly what this script exists to clean up.
+owned_by_installed_pkg() {
+    local path="$1" pkg
+    # Merged-/usr: the package database may record the path as /usr/lib/...
+    # while we look at /lib/..., so query both spellings.
+    while IFS= read -r pkg; do
+        pkg="${pkg// /}"
+        [[ -n "$pkg" ]] || continue
+        if [[ "$(dpkg-query -W -f='${db:Status-Abbrev}' "$pkg" 2>/dev/null || true)" == ii* ]]; then
+            return 0
+        fi
+    done < <(dpkg -S "$path" "/usr${path}" 2>/dev/null | cut -d: -f1 | tr ',' '\n')
+    return 1
+}
+
 RUNNING_KERNEL="$(uname -r)"
 info "Running kernel: $RUNNING_KERNEL"
 echo ""
@@ -30,6 +48,12 @@ mapfile -t INSTALLED_KERNELS < <(
     | sed -E 's/(proxmox-kernel|pve-kernel)-//; s/-(signed|dbgsym)//' \
     | sort -uV
 )
+
+# Safety: if package detection returned nothing, every kernel except the
+# running one would look orphaned. Bail out rather than risk removing a
+# kernel that is actually installed.
+[[ ${#INSTALLED_KERNELS[@]} -gt 0 ]] || \
+    error "No installed kernel packages detected — refusing to continue. Check 'dpkg --list | grep kernel' manually."
 
 # --- Build list of /lib/modules directories ----------------------------------
 mapfile -t MODULE_DIRS < <(ls /lib/modules/)
@@ -49,7 +73,9 @@ for dir in "${MODULE_DIRS[@]}"; do
         fi
     done
 
-    if [[ "$MATCH" == false ]]; then
+    # Not a PVE kernel we recognize — before calling it an orphan, make sure
+    # no installed package (of any kind) owns the directory.
+    if [[ "$MATCH" == false ]] && ! owned_by_installed_pkg "/lib/modules/$dir"; then
         ORPHANS+=("$dir")
     fi
 done
@@ -73,8 +99,13 @@ echo "Orphaned /lib/modules directories (no matching package):"
 echo "-----------------------------"
 TOTAL_SIZE=0
 for orphan in "${ORPHANS[@]}"; do
-    SIZE=$(du -sh "/lib/modules/$orphan" 2>/dev/null | awk '{print $1}')
-    SIZE_BYTES=$(du -sb "/lib/modules/$orphan" 2>/dev/null | awk '{print $1}')
+    SIZE_BYTES=$(du -sb "/lib/modules/$orphan" 2>/dev/null | awk '{print $1}' || true)
+    if [[ -n "$SIZE_BYTES" ]]; then
+        SIZE=$(numfmt --to=iec "$SIZE_BYTES" 2>/dev/null || echo "${SIZE_BYTES}B")
+    else
+        SIZE="?"
+        SIZE_BYTES=0
+    fi
     TOTAL_SIZE=$((TOTAL_SIZE + SIZE_BYTES))
     echo -e "  ${RED}✘${NC} /lib/modules/$orphan  ($SIZE)"
 done
@@ -84,8 +115,8 @@ echo "Total reclaimable space: $TOTAL_HUMAN"
 echo ""
 
 # --- Confirm -----------------------------------------------------------------
-read -rp "Remove these ${#ORPHANS[@]} orphaned directories? [y/N]: " CONFIRM
-if [[ "${CONFIRM,,}" != "y" ]]; then
+read -rp "Remove these ${#ORPHANS[@]} orphaned directories? [y/N]: " CONFIRM || CONFIRM=""
+if [[ "${CONFIRM,,}" != "y" && "${CONFIRM,,}" != "yes" ]]; then
     info "Cancelled. Nothing was removed."
     exit 0
 fi

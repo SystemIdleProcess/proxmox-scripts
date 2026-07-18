@@ -6,7 +6,7 @@ A collection of utility scripts for Proxmox VE hosts.
 
 ## pve-dkms-autofix.sh
 
-Fixes a timing bug in Proxmox where DKMS modules (NVIDIA, r8152, Coral TPU, etc.) fail to auto-rebuild on kernel updates. The DKMS post-install hook runs before kernel headers are available, so the rebuild silently skips. This script installs an apt hook that ensures headers are installed first, then triggers `dkms autoinstall` — so all DKMS-managed drivers survive kernel upgrades automatically. Run once per host.
+Fixes a timing bug in Proxmox where DKMS modules (NVIDIA, r8152, Coral TPU, etc.) fail to auto-rebuild on kernel updates. The DKMS post-install hook runs before kernel headers are available, so the rebuild silently skips — and an apt hook can't install the headers itself, because apt still holds the dpkg lock while its hooks run. This script installs the `proxmox-default-headers` meta-package (so headers upgrade in the same apt transaction as kernels) plus an apt hook that runs `dkms autoinstall` after every apt operation — so all DKMS-managed drivers survive kernel upgrades automatically. Run once per host.
 
 ```bash
 bash -c "$(wget -qLO - https://raw.githubusercontent.com/SystemIdleProcess/proxmox-scripts/main/pve-dkms-autofix.sh)"
@@ -16,7 +16,7 @@ bash -c "$(wget -qLO - https://raw.githubusercontent.com/SystemIdleProcess/proxm
 
 ## pve-r8152-setup.sh
 
-Pulls the latest Realtek r8152 USB Ethernet driver from [wget/realtek-r8152-linux](https://github.com/wget/realtek-r8152-linux), registers it with DKMS, and builds it for a target kernel. Lists installed kernels with driver status and lets you select by number. Also installs the DKMS auto-rebuild hook from `pve-dkms-autofix.sh`.
+Pulls the latest Realtek r8152 USB Ethernet driver from [wget/realtek-r8152-linux](https://github.com/wget/realtek-r8152-linux), registers it with DKMS, and builds it for a target kernel. Lists installed kernels with driver status, lets you select by number, and asks for confirmation before making any changes. Also installs the DKMS auto-rebuild hook from `pve-dkms-autofix.sh`.
 
 ```bash
 bash -c "$(wget -qLO - https://raw.githubusercontent.com/SystemIdleProcess/proxmox-scripts/main/pve-r8152-setup.sh)"
