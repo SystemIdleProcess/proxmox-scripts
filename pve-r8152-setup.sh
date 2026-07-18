@@ -1,11 +1,11 @@
 #!/bin/bash
 # =============================================================================
-# r8152-setup.sh
+# pve-r8152-setup.sh
 # Pulls latest Realtek r8152 driver from GitHub, registers it with DKMS,
 # and builds it for a target kernel — so you can reboot into it ready to go.
 #
 # Run this while booted into a working kernel WITH network access.
-# Usage: sudo bash r8152-setup.sh
+# Usage: sudo bash pve-r8152-setup.sh
 # =============================================================================
 
 set -euo pipefail
@@ -28,9 +28,16 @@ DKMS_NAME="r8152-realtek"
 # STEP 1: Detect driver version from the repo
 # =============================================================================
 info "Fetching latest driver version from GitHub..."
-DRIVER_VERSION=$(curl -fsSL "https://api.github.com/repos/wget/realtek-r8152-linux/releases/latest" \
+RELEASE_API_URL="https://api.github.com/repos/wget/realtek-r8152-linux/releases/latest"
+if command -v curl >/dev/null 2>&1; then
+    RELEASE_JSON=$(curl -fsSL "$RELEASE_API_URL" || true)
+else
+    RELEASE_JSON=$(wget -qO - "$RELEASE_API_URL" || true)
+fi
+DRIVER_VERSION=$(echo "$RELEASE_JSON" \
     | grep '"tag_name"' \
-    | sed 's/.*"v\([^"]*\)".*/\1/')
+    | sed 's/.*"v\([^"]*\)".*/\1/' \
+    || true)
 
 [[ -n "$DRIVER_VERSION" ]] || error "Could not detect driver version from GitHub. Check your network."
 info "Latest driver version: $DRIVER_VERSION"
@@ -71,6 +78,24 @@ fi
 # Validate the kernel exists
 [[ -d "/lib/modules/$TARGET_KERNEL" ]] || error "Kernel $TARGET_KERNEL not found in /lib/modules/. Is it installed?"
 info "Target kernel: $TARGET_KERNEL"
+
+# =============================================================================
+# Confirmation prompt
+# =============================================================================
+echo ""
+echo "This script will:"
+echo "  1. Install build dependencies and headers for $TARGET_KERNEL"
+echo "  2. Download r8152 driver v$DRIVER_VERSION and register it with DKMS"
+echo "  3. Build and install the driver for $TARGET_KERNEL"
+echo "  4. Install udev rules and update the initramfs"
+echo "  5. Install the apt hook so the driver survives future kernel upgrades"
+echo ""
+read -rp "Proceed? [y/N]: " CONFIRM
+if [[ "${CONFIRM,,}" != "y" ]]; then
+    info "Cancelled. No changes were made."
+    exit 0
+fi
+echo ""
 
 # =============================================================================
 # STEP 3: Install dependencies
