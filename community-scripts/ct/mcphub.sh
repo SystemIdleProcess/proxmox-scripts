@@ -12,16 +12,55 @@ APP="MCPHub"
 var_tags="${var_tags:-ai;mcp;gateway}"
 var_cpu="${var_cpu:-2}"
 var_ram="${var_ram:-4096}"
-var_disk="${var_disk:-16}"
+var_disk="${var_disk:-24}"
 var_os="${var_os:-debian}"
 var_version="${var_version:-13}"
 #var_arm64="${var_arm64:-no}" # Native dependencies have not been verified on arm64.
 var_unprivileged="${var_unprivileged:-1}"
 
+export var_mcphub_storage="${var_mcphub_storage:-}"
+export var_mcphub_pgvector="${var_mcphub_pgvector:-}"
+
 header_info "$APP"
 variables
 color
 catch_errors
+
+case "$(detect_lxc_platform)" in
+pve | incus)
+  if [[ -z "$var_mcphub_storage" ]]; then
+    var_mcphub_storage=$(prompt_select "MCPHub storage (file-based or local PostgreSQL):" 1 30 "file" "postgresql")
+  fi
+  var_mcphub_storage="${var_mcphub_storage,,}"
+  case "$var_mcphub_storage" in
+  file | postgresql) ;;
+  *)
+    msg_error "var_mcphub_storage must be file or postgresql"
+    exit 64
+    ;;
+  esac
+  if [[ "$var_mcphub_storage" == postgresql && -z "$var_mcphub_pgvector" ]]; then
+    if prompt_confirm "Install pgvector for optional Smart Routing? An embedding provider is still required." "n" 30; then
+      var_mcphub_pgvector=yes
+    else
+      var_mcphub_pgvector=no
+    fi
+  fi
+  var_mcphub_pgvector="${var_mcphub_pgvector:-no}"
+  var_mcphub_pgvector="${var_mcphub_pgvector,,}"
+  case "$var_mcphub_pgvector" in
+  yes | no) ;;
+  *)
+    msg_error "var_mcphub_pgvector must be yes or no"
+    exit 64
+    ;;
+  esac
+  if [[ "$var_mcphub_storage" == file && "$var_mcphub_pgvector" == yes ]]; then
+    msg_error "pgvector requires var_mcphub_storage=postgresql"
+    exit 64
+  fi
+  ;;
+esac
 
 function update_script() {
   header_info

@@ -13,6 +13,16 @@ setting_up_container
 network_check
 update_os
 
+var_mcphub_storage="${var_mcphub_storage:-file}"
+var_mcphub_pgvector="${var_mcphub_pgvector:-no}"
+case "$var_mcphub_storage:$var_mcphub_pgvector" in
+file:no | postgresql:no | postgresql:yes) ;;
+*)
+  msg_error "Invalid MCPHub storage options; choose file/no, postgresql/no or postgresql/yes"
+  exit 64
+  ;;
+esac
+
 msg_info "Installing Dependencies"
 $STD apt install -y \
   build-essential \
@@ -23,6 +33,16 @@ msg_ok "Installed Dependencies"
 
 NODE_VERSION="22" NODE_MODULE="pnpm@10.12.4" setup_nodejs
 USE_UVX=YES setup_uv
+
+if [[ "$var_mcphub_storage" == postgresql ]]; then
+  if [[ "$var_mcphub_pgvector" == yes ]]; then
+    PG_VERSION="17" PG_MODULES="pgvector" setup_postgresql
+    PG_DB_NAME="mcphub" PG_DB_USER="mcphub" PG_DB_EXTENSIONS="vector" PG_DB_CREDS_FILE="/dev/null" setup_postgresql_db
+  else
+    PG_VERSION="17" PG_MODULES="" setup_postgresql
+    PG_DB_NAME="mcphub" PG_DB_USER="mcphub" PG_DB_EXTENSIONS="" PG_DB_CREDS_FILE="/dev/null" setup_postgresql_db
+  fi
+fi
 
 release="${var_appversion:-$(get_latest_github_release "samanhappy/mcphub")}"
 fetch_and_deploy_gh_release "mcphub" "samanhappy/mcphub" "tarball" "$release"
@@ -41,6 +61,22 @@ ADMIN_PASSWORD=$(random_password 20)
 JWT_SECRET=$(openssl rand -hex 32)
 MCPHUB_CREDENTIAL_ENCRYPTION_KEY=$(openssl rand -base64 32)
 EOF
+if [[ "$var_mcphub_storage" == postgresql ]]; then
+  cat <<EOF >>/opt/mcphub/.env
+DB_URL=postgresql://mcphub:${PG_DB_PASS}@127.0.0.1:5432/mcphub
+USE_DB=true
+EOF
+fi
+if [[ "$var_mcphub_pgvector" == yes ]]; then
+  cat <<'EOF' >>/opt/mcphub/.env
+# Optional Smart Routing: configure an embedding provider before enabling.
+# Environment values override dashboard settings; uncomment only if using .env.
+# SMART_ROUTING_ENABLED=true
+# OPENAI_API_BASE_URL=https://YOUR-EMBEDDING-ENDPOINT/v1
+# OPENAI_API_KEY=YOUR-EMBEDDING-API-KEY
+# EMBEDDING_MODEL=YOUR-EMBEDDING-MODEL
+EOF
+fi
 chmod 600 /opt/mcphub/.env
 cat <<'EOF' >/opt/mcphub/data/mcp_settings.json
 {"mcpServers":{},"systemConfig":{"routing":{"enableBearerAuth":true}}}
@@ -48,11 +84,17 @@ EOF
 chmod 600 /opt/mcphub/data/mcp_settings.json
 msg_ok "Configured MCPHub"
 
+postgresql_service=""
+if [[ "$var_mcphub_storage" == postgresql ]]; then
+  postgresql_service="postgresql.service"
+fi
+
 msg_info "Creating Service"
 cat <<EOF >/etc/systemd/system/mcphub.service
 [Unit]
 Description=MCPHub Service
-After=network.target
+After=network.target ${postgresql_service}
+Requires=${postgresql_service}
 
 [Service]
 Type=simple
