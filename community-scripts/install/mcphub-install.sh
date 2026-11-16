@@ -59,6 +59,7 @@ install -d -m 700 /opt/mcphub/data /opt/mcphub/home
 cat <<EOF >/opt/mcphub/.env
 ADMIN_PASSWORD=$(random_password 20)
 JWT_SECRET=$(openssl rand -hex 32)
+BETTER_AUTH_SECRET=$(openssl rand -hex 32)
 MCPHUB_CREDENTIAL_ENCRYPTION_KEY=$(openssl rand -base64 32)
 EOF
 if [[ "$var_mcphub_storage" == postgresql ]]; then
