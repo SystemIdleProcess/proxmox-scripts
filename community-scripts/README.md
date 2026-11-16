@@ -13,18 +13,18 @@ The installer uses the official `fetch_and_deploy_gh_release` helper to download
 
 Defaults: unprivileged Debian 13, 2 CPU cores, 4 GiB RAM, 16 GiB disk. These are allocations, not measured minimums. arm64 is left undecided because the native build has not been verified on that architecture; the framework can ask rather than claiming support.
 
-### Install from this branch
+### Install
 
 Run in the **Proxmox host root shell**:
 
 ```bash
-export COMMUNITY_SCRIPTS_URL="https://raw.githubusercontent.com/SystemIdleProcess/proxmox-scripts/feat/mcphub-lxc/community-scripts"
+export COMMUNITY_SCRIPTS_URL="https://raw.githubusercontent.com/SystemIdleProcess/proxmox-scripts/main/community-scripts"
 bash -c "$(curl -fsSL "$COMMUNITY_SCRIPTS_URL/ct/mcphub.sh")"
 ```
 
 Both lines are required. `COMMUNITY_SCRIPTS_URL` selects the custom script base, including the nested `community-scripts` folder. The framework records this origin in the LXC's `update` command. Shared engine code comes from official `community-scripts/core`; `COMMUNITY_SCRIPTS_CORE_DIR` and `COMMUNITY_SCRIPTS_CORE_URL` remain available as documented upstream overrides.
 
-The default script origin is this repository's `main/community-scripts`; use the branch override until merged. For local-checkout testing, explicitly set the same scripts URL: the upstream Git origin detection expects a scripts checkout with its own `.git` directory. Our nested folder has none, so the explicit override ensures updates stay on the selected branch rather than defaulting to main.
+Before this change is merged, test with `COMMUNITY_SCRIPTS_URL="https://raw.githubusercontent.com/SystemIdleProcess/proxmox-scripts/feat/mcphub-lxc/community-scripts"` instead. The default script origin is this repository's `main/community-scripts`. For local-checkout testing, explicitly set the same scripts URL: the upstream Git origin detection expects a scripts checkout with its own `.git` directory. Our nested folder has none, so the explicit override ensures updates stay on the selected branch rather than defaulting to main.
 
 ### After installation
 
@@ -52,4 +52,4 @@ For diagnostics, use `systemctl status mcphub --no-pager` and `journalctl -u mcp
 - [Source-origin guide](https://github.com/community-scripts/DevScripts/blob/main/docs/guides/source-origin.md)
 - Comparable npm-based scripts: [OmniRoute CT](https://github.com/community-scripts/ProxmoxVE/blob/main/ct/omniroute.sh) and [installer](https://github.com/community-scripts/ProxmoxVE/blob/main/install/omniroute-install.sh).
 
-MCPHub's Node/pnpm versions and build sequence come from its `package.json`, Dockerfile, and npm publishing workflow. Source-release build and local gateway smoke checks are development validation only. A complete Proxmox LXC install, reboot, and actual update still require testing. Earlier testing of the published npm package alone does not establish this source installer works end to end.
+MCPHub's Node/pnpm versions and build sequence come from its `package.json`, Dockerfile, and npm publishing workflow. Source-release build and local gateway smoke checks are development validation only. The branch installer was subsequently reported to complete successfully on Proxmox, with a Home Assistant MCP connected and working. Reboot persistence and an actual application update remain unverified.
