@@ -5,7 +5,7 @@ Personal Proxmox VE host utilities and custom application LXC scripts.
 ## Repository layout
 
 - [`host/`](host/): maintenance utilities run directly on a Proxmox VE host.
-- [`community-scripts/`](community-scripts/): custom LXC application scripts using the official community-scripts engine. The structure is prepared; application installers have not been added yet.
+- [`community-scripts/`](community-scripts/): custom LXC application scripts using the official community-scripts engine. Includes a native [MCPHub installer and updater](community-scripts/README.md).
 
 ## Host utilities
 
