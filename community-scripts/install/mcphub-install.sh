@@ -40,7 +40,7 @@ if [[ "$var_mcphub_storage" == postgresql ]]; then
     PG_DB_NAME="mcphub" PG_DB_USER="mcphub" PG_DB_EXTENSIONS="vector" PG_DB_CREDS_FILE="/dev/null" setup_postgresql_db
   else
     PG_VERSION="17" PG_MODULES="" setup_postgresql
-    PG_DB_NAME="mcphub" PG_DB_USER="mcphub" PG_DB_EXTENSIONS="" PG_DB_CREDS_FILE="/dev/null" setup_postgresql_db
+    PG_DB_NAME="mcphub" PG_DB_USER="mcphub" PG_DB_CREDS_FILE="/dev/null" setup_postgresql_db
   fi
 fi
 
