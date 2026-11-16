@@ -49,7 +49,7 @@ For interactive branch testing, use the same exported URL and omit the three pre
 
 PostgreSQL selection installs local PostgreSQL 17 through `setup_postgresql`, creates an app-owned database with `setup_postgresql_db`, generates a database password, and writes `DB_URL` and `USE_DB=true` into the root-readable `.env`. No external database is offered and the application database role is not granted superuser. The generated MCPHub service requires PostgreSQL on boot. Existing installs are not migrated by `update`; reinstall into a fresh LXC to test a different selection.
 
-With pgvector selected, `PG_MODULES="pgvector"` installs the package and `PG_DB_EXTENSIONS="vector"` enables the extension. The `.env` contains **commented** Smart Routing and embedding-provider entries verified against MCPHub's runtime: `SMART_ROUTING_ENABLED`, `OPENAI_API_BASE_URL`, `OPENAI_API_KEY`, and `EMBEDDING_MODEL`. Smart Routing remains disabled by default. Configure a working embedding provider and model through the dashboard or uncomment and replace the `.env` placeholders before enabling it. Environment entries override dashboard settings; a `.env` change requires a service restart. There are no embedding credentials or API calls configured by the installer.
+With pgvector selected, `PG_MODULES="pgvector"` installs the package and `PG_DB_EXTENSIONS="vector"` enables the extension. Smart Routing remains disabled by default. Configure the embedding provider and model, then enable Smart Routing through the MCPHub dashboard. The installer adds no Smart Routing or embedding-provider entries to `.env`.
 
 ### After installation
 

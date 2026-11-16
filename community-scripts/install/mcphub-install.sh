@@ -67,16 +67,6 @@ DB_URL=postgresql://mcphub:${PG_DB_PASS}@127.0.0.1:5432/mcphub
 USE_DB=true
 EOF
 fi
-if [[ "$var_mcphub_pgvector" == yes ]]; then
-  cat <<'EOF' >>/opt/mcphub/.env
-# Optional Smart Routing: configure an embedding provider before enabling.
-# Environment values override dashboard settings; uncomment only if using .env.
-# SMART_ROUTING_ENABLED=true
-# OPENAI_API_BASE_URL=https://YOUR-EMBEDDING-ENDPOINT/v1
-# OPENAI_API_KEY=YOUR-EMBEDDING-API-KEY
-# EMBEDDING_MODEL=YOUR-EMBEDDING-MODEL
-EOF
-fi
 chmod 600 /opt/mcphub/.env
 cat <<'EOF' >/opt/mcphub/data/mcp_settings.json
 {"mcpServers":{},"systemConfig":{"routing":{"enableBearerAuth":true}}}
