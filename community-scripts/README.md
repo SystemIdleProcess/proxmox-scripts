@@ -78,3 +78,46 @@ For diagnostics, use `systemctl status mcphub --no-pager` and `journalctl -u mcp
 - Comparable npm-based scripts: [OmniRoute CT](https://github.com/community-scripts/ProxmoxVE/blob/main/ct/omniroute.sh) and [installer](https://github.com/community-scripts/ProxmoxVE/blob/main/install/omniroute-install.sh).
 
 MCPHub's Node/pnpm versions and build sequence come from its `package.json`, Dockerfile, and npm publishing workflow. Source-release build and local gateway smoke checks are development validation only. The branch installer was subsequently reported to complete successfully on Proxmox, with a Home Assistant MCP connected and working. That report covers the original file-based installation. The PostgreSQL/pgvector paths and generated service dependencies have been checked with isolated framework stubs, not a real LXC provisioning run. The real prompt helpers were exercised with preset, interactive and timeout/default inputs. Reboot persistence and an actual application update remain unverified.
+
+## OpenClaw
+
+- [`ct/openclaw.sh`](ct/openclaw.sh) sets the container defaults and handles updates.
+- [`install/openclaw-install.sh`](install/openclaw-install.sh) installs the stable OpenClaw npm package with Node.js 24 and registers `openclaw.service`.
+
+The default container is unprivileged Debian 13 with 2 CPU cores, 4 GiB RAM, and 24 GiB disk. The gateway runs as the dedicated `openclaw` user.
+
+### Install
+
+Run in the **Proxmox host root shell** to test this branch:
+
+```bash
+export COMMUNITY_SCRIPTS_URL="https://raw.githubusercontent.com/SystemIdleProcess/proxmox-scripts/feat/openclaw-lxc/community-scripts"
+bash -c "$(curl -fsSL "$COMMUNITY_SCRIPTS_URL/ct/openclaw.sh")"
+```
+
+The framework records the selected script origin for future `update` runs. Use `main` in the URL for fresh installs after the branch is merged.
+
+### Onboard and connect
+
+Run inside the **OpenClaw LXC** as root to configure your provider and model. Keep the gateway in local mode with loopback binding, port `18789`, and token authentication.
+
+```bash
+runuser -u openclaw -- /usr/local/bin/openclaw onboard --no-install-daemon
+systemctl restart openclaw
+```
+
+The package installer creates the initial gateway token in `/var/lib/openclaw/.openclaw/openclaw.json` under `gateway.auth.token`. Read it locally and keep it private.
+
+If you have SSH access to the LXC, run this from your computer. Replace `YOUR_SSH_USER` and `YOUR_LXC_IP` with the LXC login and address.
+
+```bash
+ssh -N -L 18789:127.0.0.1:18789 YOUR_SSH_USER@YOUR_LXC_IP
+```
+
+Keep the tunnel open, visit [the local dashboard](http://127.0.0.1:18789/), and enter the gateway token. See the [OpenClaw Linux guide](https://docs.openclaw.ai/platforms/linux) for SSH access.
+
+### Update
+
+Back up the LXC before upgrading. Run `update` as root inside the LXC. The script checks npm's stable release, installs a newer package when available, restarts `openclaw.service`, and checks the gateway's `/healthz` endpoint. Configuration and agent state live under `/var/lib/openclaw` and are outside the package installation path.
+
+For startup or update diagnostics, use `systemctl status openclaw --no-pager` and `journalctl -u openclaw -n 100 --no-pager`. Fresh Proxmox provisioning, onboarding, and a live upgrade have yet to be tested.
