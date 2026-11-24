@@ -28,26 +28,9 @@ fi
 $STD npm install "${npm_options[@]}" openclaw@latest
 msg_ok "Installed OpenClaw"
 
-msg_info "Configuring OpenClaw"
+msg_info "Creating OpenClaw service"
 useradd --system --user-group --home-dir /var/lib/openclaw --shell /usr/sbin/nologin openclaw
 install -d -o openclaw -g openclaw -m 700 /var/lib/openclaw /var/lib/openclaw/.openclaw
-gateway_token=$(openssl rand -hex 32)
-install -o openclaw -g openclaw -m 600 /dev/null /var/lib/openclaw/.openclaw/openclaw.json
-cat <<EOF >/var/lib/openclaw/.openclaw/openclaw.json
-{
-  "gateway": {
-    "mode": "local",
-    "bind": "loopback",
-    "port": 18789,
-    "auth": { "mode": "token", "token": "$gateway_token" }
-  },
-  "update": { "auto": { "enabled": false } }
-}
-EOF
-unset gateway_token
-msg_ok "Configured OpenClaw"
-
-msg_info "Starting OpenClaw"
 cat <<'EOF' >/etc/systemd/system/openclaw.service
 [Unit]
 Description=OpenClaw Gateway
@@ -63,7 +46,7 @@ Environment=HOME=/var/lib/openclaw
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
 Environment=OPENCLAW_SUPERVISOR_MODE=external
 Environment=OPENCLAW_NO_AUTO_UPDATE=1
-ExecStart=/usr/local/bin/openclaw gateway run --port 18789
+ExecStart=/usr/local/bin/openclaw gateway run
 Restart=on-failure
 RestartSec=5
 UMask=0077
@@ -72,9 +55,8 @@ NoNewPrivileges=true
 [Install]
 WantedBy=multi-user.target
 EOF
-systemctl enable -q --now openclaw
-$STD curl -fsS --retry 30 --retry-delay 2 --retry-connrefused --max-time 5 http://127.0.0.1:18789/healthz
-msg_ok "Started OpenClaw"
+systemctl daemon-reload
+msg_ok "Created OpenClaw service"
 
 motd_ssh
 customize

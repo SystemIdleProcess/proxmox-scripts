@@ -99,14 +99,13 @@ The framework records the selected script origin for future `update` runs. Use `
 
 ### Onboard and connect
 
-Run inside the **OpenClaw LXC** as root to configure your provider and model. Keep the gateway in local mode with loopback binding, port `18789`, and token authentication.
+The installer registers the service. The gateway starts after you finish onboarding and enable it. Begin in the **OpenClaw LXC console** as root.
 
-```bash
-runuser -u openclaw -- /usr/local/bin/openclaw onboard --no-install-daemon
-systemctl restart openclaw
-```
+1. Switch to the service user with `runuser --login --shell /bin/bash openclaw`.
+2. Run `/usr/local/bin/openclaw onboard --no-install-daemon`. Choose **Local** to host the gateway in this LXC, then set up your provider and model. For SSH tunnel access, choose loopback binding. The wizard manages gateway authentication and settings.
+3. Type `exit` to return to root, then run `systemctl enable --now openclaw`.
 
-The package installer creates the initial gateway token in `/var/lib/openclaw/.openclaw/openclaw.json` under `gateway.auth.token`. Read it locally and keep it private.
+The SSH example below assumes loopback binding and OpenClaw's default gateway port of `18789`. If you chose a different port during onboarding, change the destination port in the tunnel command. With token authentication, use the token generated during onboarding and keep it private.
 
 If you have SSH access to the LXC, run this from your computer. Replace `YOUR_SSH_USER` and `YOUR_LXC_IP` with the LXC login and address.
 
@@ -118,6 +117,6 @@ Keep the tunnel open, visit [the local dashboard](http://127.0.0.1:18789/), and 
 
 ### Update
 
-Back up the LXC before upgrading. Run `update` as root inside the LXC. The script checks npm's stable release, installs a newer package when available, restarts `openclaw.service`, and checks the gateway's `/healthz` endpoint. Configuration and agent state live under `/var/lib/openclaw` and are outside the package installation path.
+Back up the LXC before upgrading. Run `update` as root inside the LXC. The script checks npm's stable release, installs a newer package when available, and restarts `openclaw.service` if it was running. Configuration and agent state live under `/var/lib/openclaw` and are outside the package installation path.
 
 For startup or update diagnostics, use `systemctl status openclaw --no-pager` and `journalctl -u openclaw -n 100 --no-pager`. Fresh Proxmox provisioning, onboarding, and a live upgrade have yet to be tested.

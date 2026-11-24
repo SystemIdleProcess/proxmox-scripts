@@ -53,9 +53,8 @@ function update_script() {
 
   msg_info "Updating OpenClaw to $latest"
   $STD npm install "${npm_options[@]}" "openclaw@$latest"
-  systemctl restart openclaw
-  $STD curl -fsS --retry 30 --retry-delay 2 --retry-connrefused --max-time 5 http://127.0.0.1:18789/healthz
-  msg_ok "OpenClaw $latest is running"
+  systemctl try-restart openclaw
+  msg_ok "Updated OpenClaw to $latest"
   exit 0
 }
 
@@ -64,7 +63,8 @@ build_container
 description
 
 msg_ok "Completed Successfully!\n"
-echo -e "${INFO}${YW}OpenClaw listens on 127.0.0.1:18789 inside the container. Use an SSH tunnel to reach the dashboard.${CL}"
-echo -e "${INFO}${YW}In the container, run: runuser -u openclaw -- /usr/local/bin/openclaw onboard --no-install-daemon${CL}"
-echo -e "${INFO}${YW}After onboarding, run: systemctl restart openclaw${CL}"
-echo -e "${INFO}${YW}Gateway token: /var/lib/openclaw/.openclaw/openclaw.json (gateway.auth.token)${CL}"
+echo -e "${INFO}${YW}OpenClaw is installed. Complete these steps in the LXC console as root:${CL}"
+echo "1. Switch to the OpenClaw user: runuser --login --shell /bin/bash openclaw"
+echo "2. Run onboarding: /usr/local/bin/openclaw onboard --no-install-daemon"
+echo "   Choose Local to host the gateway in this LXC."
+echo "3. Type exit to return to root, then run: systemctl enable --now openclaw"
