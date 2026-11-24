@@ -102,8 +102,19 @@ The framework records the selected script origin for future `update` runs. Use `
 The installer registers the service. The gateway starts after you finish onboarding and enable it. Begin in the **OpenClaw LXC console** as root.
 
 1. Open the OpenClaw LXC console as root.
-2. Run onboarding as the service user with `runuser -u openclaw -- /usr/local/bin/openclaw onboard --no-install-daemon`. Choose **Local** to host the gateway in this LXC, then set up your provider and model. For SSH tunnel access, choose loopback binding. The wizard manages gateway authentication and settings.
-3. After onboarding returns you to root, run `systemctl enable --now openclaw`.
+2. Run onboarding as the service user.
+
+   ```bash
+   runuser -u openclaw -- /usr/local/bin/openclaw onboard --no-install-daemon
+   ```
+
+   Choose **Local** to host the gateway in this LXC, then set up your provider and model. For SSH tunnel access, choose loopback binding. The wizard manages gateway authentication and settings.
+
+3. After onboarding returns you to root, enable and start the service.
+
+   ```bash
+   systemctl enable --now openclaw
+   ```
 
 The SSH example below assumes loopback binding and OpenClaw's default gateway port of `18789`. If you chose a different port during onboarding, change the destination port in the tunnel command. With token authentication, use the token generated during onboarding and keep it private.
 
