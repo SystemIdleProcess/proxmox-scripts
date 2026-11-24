@@ -64,7 +64,7 @@ description
 
 msg_ok "Completed Successfully!\n"
 echo -e "${INFO}${YW}OpenClaw is installed. Complete these steps in the LXC console as root:${CL}"
-echo "1. Switch to the OpenClaw user: runuser --login --shell /bin/bash openclaw"
-echo "2. Run onboarding: /usr/local/bin/openclaw onboard --no-install-daemon"
+echo -e "1. Switch to the OpenClaw user: ${BGN}runuser --login --shell /bin/bash openclaw${CL}"
+echo -e "2. Run onboarding: ${BGN}/usr/local/bin/openclaw onboard --no-install-daemon${CL}"
 echo "   Choose Local to host the gateway in this LXC."
-echo "3. Type exit to return to root, then run: systemctl enable --now openclaw"
+echo -e "3. Type ${BGN}exit${CL} to return to root, then run: ${BGN}systemctl enable --now openclaw${CL}"
